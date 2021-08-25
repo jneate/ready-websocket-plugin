@@ -126,6 +126,7 @@ public class TyrusClient extends Endpoint implements Client {
         try {
 
             throwable.set(null);
+            closeReason.set(null);
             future.set(null);
 
             if (timeoutMillis <= 0)
