@@ -177,28 +177,39 @@ public class ReceiveClosureTestStep extends ConnectedTestStep implements Asserta
                 return result;
             }
 
-            if (client.isFaulty() || !client.isConnected()) {
-                if (client.getClosureReason() != null) {
-                    setClosureMessage("[" + client.getClosureReason().getCloseCode().getCode() + "] " + client.getClosureReason().getReasonPhrase());
-                    for (WsdlMessageAssertion assertion : assertionsSupport.getAssertionList()) {
-                        applyAssertion(assertion, runContext);
-                        if (assertion.isFailed()) {
-                            result.setStatus(TestStepResult.TestStepStatus.FAILED);
-                            return result;
+            long startTime = System.nanoTime();
+            long maxTime = getTimeout() == 0 ? Long.MAX_VALUE : startTime + (long) getTimeout() * 1000 * 1000;
+
+            while (System.nanoTime() <= maxTime && !cancellationToken.isCancelled()) {
+                if (client.isFaulty() || !client.isConnected()) {
+                    if (client.getClosureReason() != null) {
+                        setClosureMessage("[" + client.getClosureReason().getCloseCode().getCode() + "] " + client.getClosureReason().getReasonPhrase());
+                        for (WsdlMessageAssertion assertion : assertionsSupport.getAssertionList()) {
+                            applyAssertion(assertion, runContext);
+                            if (assertion.isFailed()) {
+                                result.setStatus(TestStepResult.TestStepStatus.FAILED);
+                                return result;
+                            }
                         }
+                    } else {
+                        result.setStatus(TestStepResult.TestStepStatus.FAILED);
+                        result.setError(new Exception("WebSocket closed but unable to find closing reason"));
+                        return result;
                     }
-                } else {
-                    result.setStatus(TestStepResult.TestStepStatus.FAILED);
-                    result.setError(new Exception("WebSocket closed but unable to find closing reason"));
+                    result.setStatus(TestStepResult.TestStepStatus.OK);
                     return result;
                 }
-                result.setStatus(TestStepResult.TestStepStatus.OK);
+            }
+
+            if (cancellationToken.isCancelled()) {
+                result.setStatus(TestStepResult.TestStepStatus.CANCELED);
                 return result;
             } else {
                 result.setStatus(TestStepResult.TestStepStatus.FAILED);
                 result.setError(new Exception("WebSocket still open and healthy"));
                 return result;
             }
+
         } finally {
             if (iconAnimator != null)
             iconAnimator.stop();
