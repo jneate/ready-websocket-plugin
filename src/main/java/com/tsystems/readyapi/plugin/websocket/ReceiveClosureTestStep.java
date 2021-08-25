@@ -51,6 +51,7 @@ import com.eviware.soapui.support.StringUtils;
 import com.eviware.soapui.support.UISupport;
 import com.eviware.soapui.support.xml.XmlObjectConfigurationReader;
 import com.google.common.base.Charsets;
+import org.glassfish.tyrus.core.WebSocketException;
 
 @PluginTestStep(typeName = "WebsocketReceiveClosureTestStep", name = "Receive Websocket Closure Event",
         description = "Waits for a Websocket Closure Event.",
@@ -176,7 +177,8 @@ public class ReceiveClosureTestStep extends ConnectedTestStep implements Asserta
             }
 
             if (client.isFaulty()) {
-                setClosureMessage(client.getThrowable().getMessage());
+                WebSocketException exception = (WebSocketException) client.getThrowable();
+                setClosureMessage("[" + exception.getCloseReason().getCloseCode().getCode() + "] " + exception.getCloseReason().getReasonPhrase());
                 for (WsdlMessageAssertion assertion : assertionsSupport.getAssertionList()) {
                     applyAssertion(assertion, runContext);
                     if (assertion.isFailed()) {
