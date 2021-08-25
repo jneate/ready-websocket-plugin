@@ -173,24 +173,32 @@ public class ReceiveClosureTestStep extends ConnectedTestStep implements Asserta
             Client client = getClient(runContext, result);
             if (client == null) {
                 result.setStatus(TestStepResult.TestStepStatus.FAILED);
+                result.setError(new Exception("No WebSocket Client found"));
                 return result;
             }
 
-            if (client.isFaulty()) {
-                WebSocketException exception = (WebSocketException) client.getThrowable();
-                setClosureMessage("[" + exception.getCloseReason().getCloseCode().getCode() + "] " + exception.getCloseReason().getReasonPhrase());
-                for (WsdlMessageAssertion assertion : assertionsSupport.getAssertionList()) {
-                    applyAssertion(assertion, runContext);
-                    if (assertion.isFailed()) {
-                        result.setStatus(TestStepResult.TestStepStatus.FAILED);
-                        return result;
+            if (client.isFaulty() || !client.isConnected()) {
+                if (client.getClosureReason() != null) {
+                    setClosureMessage("[" + client.getClosureReason().getCloseCode().getCode() + "] " + client.getClosureReason().getReasonPhrase());
+                    for (WsdlMessageAssertion assertion : assertionsSupport.getAssertionList()) {
+                        applyAssertion(assertion, runContext);
+                        if (assertion.isFailed()) {
+                            result.setStatus(TestStepResult.TestStepStatus.FAILED);
+                            return result;
+                        }
                     }
+                } else {
+                    result.setStatus(TestStepResult.TestStepStatus.FAILED);
+                    result.setError(new Exception("WebSocket closed but unable to find closing reason"));
+                    return result;
                 }
                 result.setStatus(TestStepResult.TestStepStatus.OK);
                 return result;
+            } else {
+                result.setStatus(TestStepResult.TestStepStatus.FAILED);
+                result.setError(new Exception("WebSocket still open and healthy"));
+                return result;
             }
-            result.setStatus(TestStepResult.TestStepStatus.OK);
-            return result;
         } finally {
             if (iconAnimator != null)
             iconAnimator.stop();
@@ -216,16 +224,16 @@ public class ReceiveClosureTestStep extends ConnectedTestStep implements Asserta
     }
 
     private String formOutcome(ExecutableTestStepResult executionResult) {
-        if (executionResult.getStatus() == TestStepResult.TestStepStatus.CANCELED)
+        if (executionResult.getStatus() == TestStepResult.TestStepStatus.CANCELED) {
             return "CANCELED";
-        else if (executionResult.getStatus() == TestStepResult.TestStepStatus.FAILED) {
-            if (executionResult.getError() == null)
-                return "Unable to receive a valid message (" + StringUtils.join(executionResult.getMessages(), " ")
-                        + ")";
-            else
-                return "Error during message receiving: " + Utils.getExceptionMessage(executionResult.getError());
+        } else if (executionResult.getStatus() == TestStepResult.TestStepStatus.FAILED) {
+            if (executionResult.getError() == null) {
+                return "WebSocket Closed but assertion(s) failed";
+            } else {
+                return String.format("Error - %s", executionResult.getError().getMessage());
+            }
         } else
-            return String.format("Message has been received within %d ms", executionResult.getTimeTaken());
+            return String.format("WebSocket Closed - %d", executionResult.getTimeTaken());
 
     }
 

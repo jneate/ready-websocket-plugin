@@ -1,5 +1,7 @@
 package com.tsystems.readyapi.plugin.websocket;
 
+import javax.websocket.CloseReason;
+
 public interface Client {
 
     public void cancel();
@@ -13,6 +15,8 @@ public interface Client {
     public Message<?> nextMessage(long timeoutMillis);
 
     public Throwable getThrowable();
+
+    public CloseReason getClosureReason();
 
     public boolean isAvailable();
 

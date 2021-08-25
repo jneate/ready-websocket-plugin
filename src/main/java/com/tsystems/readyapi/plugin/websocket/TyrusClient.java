@@ -41,6 +41,7 @@ public class TyrusClient extends Endpoint implements Client {
 
     private AtomicReference<Session> session = new AtomicReference<Session>();
     private AtomicReference<Throwable> throwable = new AtomicReference<Throwable>();
+    private AtomicReference<CloseReason> closeReason = new AtomicReference<CloseReason>();
     private BlockingQueue<Message<?>> messageQueue = new LinkedBlockingQueue<Message<?>>();
     private AtomicReference<Future<?>> future = new AtomicReference<Future<?>>();
 
@@ -150,10 +151,12 @@ public class TyrusClient extends Endpoint implements Client {
     public void disconnect(boolean harshDisconnect) throws Exception {
         Session session;
         if ((session = this.session.get()) != null)
-            if (!harshDisconnect)
-                session.close(new CloseReason(CloseCodes.NORMAL_CLOSURE, "drop connection test step"));
-            else {
-                session.close(new CloseReason(CloseCodes.PROTOCOL_ERROR, "drop connection test step"));
+            if (!harshDisconnect) {
+                closeReason.set(new CloseReason(CloseCodes.NORMAL_CLOSURE, "drop connection test step"));
+                session.close(closeReason.get());
+            } else {
+                closeReason.set(new CloseReason(CloseCodes.PROTOCOL_ERROR, "drop connection test step"));
+                session.close(closeReason.get());
                 this.session.set(null);
             }
     }
@@ -199,6 +202,15 @@ public class TyrusClient extends Endpoint implements Client {
     @Override
     public Throwable getThrowable() {
         return throwable.get();
+    }
+
+    /**
+     *
+     * @see com.tsystems.readyapi.plugin.websocket.Client#getClosureReason()
+     */
+    @Override
+    public CloseReason getClosureReason() {
+        return closeReason.get();
     }
 
     /**
@@ -250,7 +262,7 @@ public class TyrusClient extends Endpoint implements Client {
         SoapUI.log("WebSocketClose statusCode=" + closeReason.getCloseCode() + " reason="
                 + closeReason.getReasonPhrase());
         messageQueue.clear();
-
+        this.closeReason.set(closeReason);
         this.session.set(null);
 
         Future<?> future;
